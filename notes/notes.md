@@ -3,7 +3,7 @@
 * [NOTE] use ncbi for genomic side
 * [NOTE] several tools for ncbi, also new ones
 * [NOTE] start with bacdive side of things
-* [NOTE] construct db scheme 
+* [TODO] construct db scheme 
 * [NOTE]
 * [NOTE]
 * [NOTE]
