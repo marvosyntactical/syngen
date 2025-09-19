@@ -36,6 +36,7 @@ import json
 import logging
 import sqlite3
 from typing import Callable, Dict, Iterable, List, Optional
+from pprint import pprint
 
 import bacdive
 
@@ -43,6 +44,40 @@ import bacdive
 # -------------------------
 # Helpers: general parsing
 # -------------------------
+
+
+def _to_text(v):
+    """Coerce BacDive values (str/int/float/list/dict/None) into a readable string or None."""
+    if v is None:
+        return None
+    if isinstance(v, (str, int, float)):
+        return str(v)
+
+    if isinstance(v, list):
+        parts = []
+        for item in v:
+            if isinstance(item, (str, int, float)):
+                parts.append(str(item))
+            elif isinstance(item, dict):
+                # Prefer common human fields if present
+                for key in ("value", "result", "activity", "text", "name", "label"):
+                    if key in item and item[key] not in (None, ""):
+                        parts.append(str(item[key]))
+                        break
+                else:
+                    parts.append(json.dumps(item, ensure_ascii=False))
+            else:
+                parts.append(str(item))
+        return "; ".join(p for p in parts if p)
+
+    if isinstance(v, dict):
+        # Prefer a representative value if present, else compact JSON
+        for key in ("value", "result", "activity", "text", "name", "label"):
+            if key in v and v[key] not in (None, ""):
+                return str(v[key])
+        return json.dumps(v, ensure_ascii=False)
+
+    return str(v)
 
 def _as_list(x):
     if x is None:
@@ -165,85 +200,283 @@ def _extract_biosample_bioproject(entry: dict):
     bioproject = find_first(["bioproject", "PRJNA", "PRJEB", "PRJDB"])
     return biosample, bioproject
 
+# ~~~~~~~~~~~~~ BACDIVE EXTRACTION ~~~~~~~~~~~~~~
+
+
+def _get(d, *path, default=None):
+    """Safe nested get: _get(x, 'A','B','C') -> x['A']['B']['C'] or default."""
+    cur = d
+    for k in path:
+        if not isinstance(cur, dict) or k not in cur:
+            return default
+        cur = cur[k]
+    return cur
+
+
 
 def _extract_bacdive_id(entry: dict) -> Optional[str]:
     """
-    Try multiple places/variants for the BacDive internal identifier.
-    Returns a string or None.
+    Robustly extract BacDive-ID from either:
+      - New 'sectioned' schema: entry['General']['BacDive-ID']
+      - Older schema: entry['strain number']['BacDive-ID']
+      - Fallbacks: top-level variants
     """
-    # Typical location
+    # New schema
+    v = _get(entry, "General", "BacDive-ID")
+    if v not in (None, ""):
+        return str(v)
+
+    # Older schema
     sn = entry.get("strain number") or entry.get("strainNumber") or {}
     for k in ("BacDive-ID", "BacDive ID", "BacDiveID", "bacdive_id", "BacDive Id"):
         if isinstance(sn, dict) and sn.get(k) not in (None, ""):
             return str(sn.get(k))
 
-    # Sometimes there is a top-level 'BacDive-ID' or 'entry number'
+    # Rare fallbacks
     for k in ("BacDive-ID", "entry number", "entry_number"):
         v = entry.get(k)
         if v not in (None, ""):
             return str(v)
 
-    # Last-ditch: detect numeric-looking IDs among keys
-    # (very defensive; avoids false positives)
-    for v in (sn if isinstance(sn, dict) else {}).values():
-        if isinstance(v, (int, str)):
-            s = str(v).strip()
-            if s.isdigit() and len(s) >= 4:  # BacDive IDs are numeric strings
-                return s
-
     return None
 
 
-def _extract_normalized(entry: dict) -> Dict[str, Optional[str]]:
-    """Make a flat, stable record from a raw BacDive JSON entry."""
-    tax = entry.get("taxonomy", {}) or {}
-    phys = entry.get("physiology", {}) or {}
-    morph = entry.get("morphology", {}) or {}
+def _extract_ncbi_taxid(entry: dict) -> Optional[int]:
+    """
+    New schema: entry['General']['NCBI tax id']['NCBI tax id'] is an int.
+    Older schema: entry['taxonomy']['NCBI Taxonomy-ID'] may be '562 (species)'.
+    """
+    v = _get(entry, "General", "NCBI tax id", "NCBI tax id")
+    if isinstance(v, int):
+        return v
+    if v and str(v).isdigit():
+        return int(v)
 
-    bd_id = entry.get("strain number", {}).get("BacDive-ID")
-    bd_id = str(bd_id) if bd_id is not None else None
-    # bd_id = _extract_bacdive_id(entry)
-
-    ncbi_taxid = _get_first_int(tax.get("NCBI Taxonomy-ID"))
-
-    organism_name = tax.get("name and status") or tax.get("name") or None
-    organism_name = str(organism_name) if organism_name else None
-
-    gram_stain = (morph.get("Gram stain") or None)
-    cell_shape = (morph.get("cell shape") or None)
-    motility = (morph.get("motility") or None)
-    oxygen_tol = (phys.get("oxygen tolerance") or None)
-    temp_opt = (phys.get("temperature optimum") or None)
-    salinity_opt = (phys.get("NaCl concentration optimum") or None)
-
-    accs = _extract_accessions(entry)
-    biosample, bioproject = _extract_biosample_bioproject(entry)
-
-    culture_ids = _extract_collections(entry)
-    isolate = None
-    for src in (tax, entry.get("strain number", {}) or {}):
-        for k, v in (src or {}).items():
-            if isinstance(v, str) and "isolate" in k.lower():
-                isolate = v
+    old = _get(entry, "taxonomy", "NCBI Taxonomy-ID")
+    if old:
+        s = str(old).strip()
+        num = []
+        for ch in s:
+            if ch.isdigit():
+                num.append(ch)
+            else:
                 break
+        if num:
+            return int("".join(num))
+    return None
+
+
+
+def _extract_names(entry: dict) -> Dict[str, Optional[str]]:
+    """
+    New schema: use 'Name and taxonomic classification'
+    Older schema: use 'taxonomy'
+    """
+    # New schema
+    nm = entry.get("Name and taxonomic classification") or {}
+    species = nm.get("species")
+    full_name = nm.get("full scientific name")
+    genus = nm.get("genus")
+    strain = nm.get("strain designation")
+
+    if species or full_name or genus:
+        return {
+            "organism_name": full_name or species or genus,
+            "species": species,
+            "genus": genus,
+            "strain_designation": strain,
+        }
+
+    # Older schema
+    tax = entry.get("taxonomy") or {}
+    return {
+        "organism_name": tax.get("name and status") or tax.get("name"),
+        "species": tax.get("species"),
+        "genus": tax.get("genus"),
+        "strain_designation": None,
+    }
+
+def _extract_culture_collections(entry: dict) -> List[str]:
+    """
+    New schema: 'External links' -> 'culture collection no.' (string like 'DSM 4599')
+    Older schema: under 'strain number' various collection fields.
+    """
+    out = []
+    v = _get(entry, "External links", "culture collection no.")
+    if isinstance(v, str) and v.strip():
+        out.append(v.strip())
+
+    sn = entry.get("strain number") or {}
+    for k, val in (sn.items() if isinstance(sn, dict) else []):
+        ks = str(k).lower()
+        if any(tok in ks for tok in ("culture", "collection", "strain")):
+            if isinstance(val, str) and val.strip():
+                out.append(val.strip())
+            elif isinstance(val, list):
+                out.extend([str(x).strip() for x in val if x])
+
+    # dedup, keep order
+    seen, dedup = set(), []
+    for s in out:
+        if s and s not in seen:
+            seen.add(s)
+            dedup.append(s)
+    return dedup
+
+def _extract_accessions(entry: dict) -> List[Dict[str, Optional[str]]]:
+    """
+    Collect INSDC accessions (GCF_/GCA_/NZ_/NC_...) from the 'Sequence information'
+    section in the new schema or the older 'sequence information'.
+    Be defensive: scan strings for tokens too.
+    """
+    accs = []
+
+    def push(acc_no, database=None, typ=None, note=None):
+        if not acc_no:
+            return
+        accs.append({
+            "acc_no": str(acc_no),
+            "database": (str(database) if database else None),
+            "type": (str(typ) if typ else None),
+            "notes": (str(note) if note else None),
+        })
+
+    # New schema
+    seqinfo = entry.get("Sequence information") or {}
+    if isinstance(seqinfo, dict):
+        # Common fields we’ve seen: 'genome sequence', 'sequence entries' (when present)
+        for k, v in seqinfo.items():
+            if isinstance(v, dict):
+                # look for typical keys
+                acc = v.get("acc no") or v.get("accession") or v.get("assembly accession")
+                if acc:
+                    push(acc, database=v.get("database"), typ=v.get("type"), note=k)
+                # also scan stringy subfields for GCA/GCF/NC_
+                for subv in v.values():
+                    if isinstance(subv, str):
+                        _scan_string_for_accessions(subv, accs, note=k)
+            elif isinstance(v, list):
+                for obj in v:
+                    if isinstance(obj, dict):
+                        acc = obj.get("acc no") or obj.get("accession") or obj.get("assembly accession")
+                        if acc:
+                            push(acc, database=obj.get("database"), typ=obj.get("type"), note=k)
+                        else:
+                            for subv in obj.values():
+                                if isinstance(subv, str):
+                                    _scan_string_for_accessions(subv, accs, note=k)
+                    elif isinstance(obj, str):
+                        _scan_string_for_accessions(obj, accs, note=k)
+            elif isinstance(v, str):
+                _scan_string_for_accessions(v, accs, note=k)
+
+    # Older schema
+    old = entry.get("sequence information") or {}
+    if isinstance(old, dict):
+        for k, v in old.items():
+            if isinstance(v, dict):
+                acc = v.get("acc no") or v.get("accession")
+                if acc:
+                    push(acc, database=v.get("database"), typ=v.get("type"), note=k)
+            elif isinstance(v, list):
+                for obj in v:
+                    if isinstance(obj, dict):
+                        acc = obj.get("acc no") or obj.get("accession")
+                        if acc:
+                            push(acc, database=obj.get("database"), typ=obj.get("type"), note=k)
+                    elif isinstance(obj, str):
+                        _scan_string_for_accessions(obj, accs, note=k)
+            elif isinstance(v, str):
+                _scan_string_for_accessions(v, accs, note=k)
+
+    # Dedup while preserving order
+    seen, dedup = set(), []
+    for a in accs:
+        key = (a["acc_no"], a.get("database"), a.get("type"))
+        if key not in seen:
+            seen.add(key)
+            dedup.append(a)
+    return dedup
+
+def _scan_string_for_accessions(s: str, out: List[Dict[str, Optional[str]]], note=None):
+    import re
+    for m in re.findall(r'(GC[AF]_\d+\.\d+|N[CTZ]_\d+(\.\d+)?)', s):
+        acc = m[0]
+        out.append({"acc_no": acc, "database": None, "type": None, "notes": note})
+
+def _extract_basic_phenotypes(entry: dict) -> Dict[str, Optional[str]]:
+    """
+    Very light phenotype extraction that works on both schemas:
+      - Gram stain, motility, oxygen tolerance if present
+      - Plus a few metabolic markers from the new 'Physiology and metabolism'
+    """
+    morph = entry.get("Morphology") or entry.get("morphology") or {}
+    phys = entry.get("Physiology and metabolism") or entry.get("physiology") or {}
+
+    gram = morph.get("Gram stain") or morph.get("Gram-stain")
+    motility = morph.get("motility") or morph.get("Motility")
+    oxygen = phys.get("oxygen tolerance") or phys.get("Oxygen tolerance")
+
+    # Simple metabolic flags (new schema example shows API 20E & enzymes)
+    indole = None
+    vp = None
+    beta_gal = None
+
+    # API 20E list of dicts
+    for rec in phys.get("API 20E", []) or []:
+        if isinstance(rec, dict):
+            # keys like 'IND' for indole, 'VP' for Voges-Proskauer, 'ONPG' ~ beta-gal
+            indole = indole or rec.get("IND")
+            vp = vp or rec.get("VP")
+            beta_gal = beta_gal or rec.get("ONPG")
+
+    # Enzymes list (look for beta-galactosidase)
+    for rec in phys.get("enzymes", []) or []:
+        if isinstance(rec, dict) and str(rec.get("value","")).lower() == "beta-galactosidase":
+            beta_gal = beta_gal or rec.get("activity")
 
     return {
-        "bacdive_id": bd_id,
-        "organism_name": organism_name,
-        "ncbi_taxid": ncbi_taxid,
-        "gram_stain": gram_stain,
-        "cell_shape": cell_shape,
+        "gram_stain": gram,
         "motility": motility,
-        "oxygen_tolerance": oxygen_tol,
-        "temp_optimum": temp_opt,
-        "salinity_optimum": salinity_opt,
-        "biosample": biosample,
-        "bioproject": bioproject,
-        "culture_collection_ids": ";".join(culture_ids) if culture_ids else None,
-        "isolate": isolate,
-        "accessions": accs,          # join-critical; one-to-many goes to table 'accessions'
+        "oxygen_tolerance": oxygen,
+        "indole_test": indole,
+        "vp_test": vp,
+        "beta_galactosidase": beta_gal,
+    }
+
+def _extract_normalized(entry: dict) -> Dict[str, Optional[str]]:
+    """Normalize a BacDive entry (new or old schema) into our flat row dict."""
+    bd_id = _extract_bacdive_id(entry)
+    names = _extract_names(entry)
+    taxid = _extract_ncbi_taxid(entry)
+    accessions = _extract_accessions(entry)
+    phen = _extract_basic_phenotypes(entry)
+    culture_ids = _extract_culture_collections(entry)
+    morph = entry.get("Morphology") or entry.get("morphology") or {}
+    phys  = entry.get("Physiology and metabolism") or entry.get("physiology") or {}
+
+    rec = {
+        "bacdive_id": bd_id,
+        "organism_name": names.get("organism_name"),
+        "ncbi_taxid": taxid,
+
+        # Coerced to scalars:
+        "gram_stain": _to_text(morph.get("Gram stain") or morph.get("Gram-stain")),
+        "cell_shape": _to_text(morph.get("cell shape") or morph.get("Cell shape")),
+        "motility": _to_text(morph.get("motility") or morph.get("Motility")),
+        "oxygen_tolerance": _to_text(phys.get("oxygen tolerance") or phys.get("Oxygen tolerance")),
+        "temp_optimum": _to_text(phys.get("temperature optimum") or phys.get("Temperature optimum")),
+        "salinity_optimum": _to_text(phys.get("NaCl concentration optimum") or phys.get("Salt requirement")),
+
+        "biosample": None,
+        "bioproject": None,
+        "culture_collection_ids": ";".join(_extract_culture_collections(entry)) or None,
+        "isolate": names.get("strain_designation"),
+
+        "accessions": accessions,           # keep as list of dicts; handled separately for insert
         "raw_json": json.dumps(entry),
     }
+    return rec
 
 
 # -------------------------
@@ -382,6 +615,8 @@ def write_sqlite(db_path: str, records: List[Dict]) -> None:
         conn.close()
         return
 
+    print(records)
+
     cur.executemany("""
     INSERT INTO strains (
         bacdive_id, organism_name, ncbi_taxid, gram_stain, cell_shape, motility,
@@ -408,18 +643,21 @@ def write_sqlite(db_path: str, records: List[Dict]) -> None:
         raw_json=excluded.raw_json
     """, records)
 
-    # good, dropped = [], 0
-    # for r in records:
-    #     if r.get("bacdive_id"):
-    #         good.append(r)
-    #     else:
-    #         dropped += 1
-    # if dropped:
-    #     logging.warning(f"Dropping {dropped} entries with missing BacDive-ID.")
-    # records = good
+    good, dropped = [], 0
+    for r in records:
+        if r.get("bacdive_id"):
+            good.append(r)
+        else:
+            dropped += 1
+    if dropped:
+        logging.warning(f"Dropping {dropped} entries with missing BacDive-ID.")
+    records = good
 
     acc_rows = []
     for r in records:
+        print("Accessions for this record:", r["accessions"])
+        print("Ncbi taxid:", r["ncbi_taxid"])
+        print(r.keys())
         bd = r.get("bacdive_id")
         for a in r.get("accessions", []) or []:
             acc_rows.append({
@@ -462,7 +700,7 @@ def parse_args():
     # Search mode
     ap.add_argument("--search-mode", choices=["taxonomy", "ids"], default="taxonomy",
                     help="Search by taxonomy (genus/species string) or a list of BacDive IDs")
-    ap.add_argument("--taxonomy", type=str, default="Acetanaerobacterium elongatum",
+    ap.add_argument("--taxonomy", type=str, default="Acetobacter aceti",
                     help="Taxonomy string when search-mode=taxonomy")
     ap.add_argument("--searchtype", choices=["exact", "contains"], default="contains",
                     help="BacDive search type: exact or contains")

@@ -1,0 +1,336 @@
+{
+    "Culture and growth conditions": {},
+    "External links": {
+        "@ref": 1789,
+        "culture collection no.": "DSM 4599",
+        "straininfo link": {
+            "@ref": 74003,
+            "straininfo": 112747
+        }
+    },
+    "General": {
+        "@ref": 1789,
+        "BacDive-ID": 4510,
+        "DSM-Number": 4599,
+        "NCBI tax id": {
+            "Matching level": "species",
+            "NCBI tax id": 562
+        },
+        "description": "Escherichia coli pSW1 is a bacterium of the family Enterobacteriaceae.",
+        "doi": "10.13145/bacdive4510.20230509.8.1",
+        "keywords": "Bacteria"
+    },
+    "Genome-based predictions": {},
+    "Isolation, sampling and environmental information": {},
+    "Morphology": {},
+    "Name and taxonomic classification": {
+        "@ref": 1789,
+        "LPSN": {
+            "@ref": 20215,
+            "class": "Gammaproteobacteria",
+            "description": "domain/bacteria",
+            "domain": "Bacteria",
+            "family": "Enterobacteriaceae",
+            "full scientific name": "<I>Escherichia</I> <I>coli</I> (Migula 1895) Castellani and Chalmers 1919 (Approved Lists 1980)",
+            "genus": "Escherichia",
+            "keyword": "phylum/pseudomonadota",
+            "order": "Enterobacterales",
+            "phylum": "Pseudomonadota",
+            "species": "Escherichia coli",
+            "synonyms": {
+                "@ref": 20215,
+                "synonym": "Bacillus coli"
+            }
+        },
+        "class": "Gammaproteobacteria",
+        "domain": "Bacteria",
+        "family": "Enterobacteriaceae",
+        "full scientific name": "Escherichia coli (Migula 1895) Castellani and Chalmers 1919",
+        "genus": "Escherichia",
+        "order": "Enterobacteriales, not validated",
+        "phylum": "Proteobacteria",
+        "species": "Escherichia coli",
+        "strain designation": "pSW1",
+        "type strain": "no"
+    },
+    "Physiology and metabolism": {
+        "API 20E": [
+            {
+                "@ref": 1789,
+                "ADH Arg": "-",
+                "AMY": "-",
+                "ARA": "+",
+                "CIT": "-",
+                "GEL": "-",
+                "GLU": "+",
+                "H2S": "-",
+                "IND": "+",
+                "INO": "-",
+                "LDC Lys": "-",
+                "MAN": "+",
+                "MEL": "+",
+                "ODC": "-",
+                "ONPG": "+",
+                "RHA": "+",
+                "SAC": "-",
+                "Sor": "+",
+                "TDA Trp": "-",
+                "URE": "-",
+                "VP": "-"
+            },
+            {
+                "@ref": 1789,
+                "ADH Arg": "-",
+                "AMY": "-",
+                "ARA": "+",
+                "CIT": "-",
+                "GEL": "-",
+                "GLU": "+",
+                "H2S": "-",
+                "IND": "+",
+                "INO": "-",
+                "LDC Lys": "-",
+                "MAN": "+",
+                "MEL": "+",
+                "ODC": "-",
+                "ONPG": "+",
+                "OX": "-",
+                "RHA": "+",
+                "SAC": "-",
+                "Sor": "+",
+                "TDA Trp": "-",
+                "URE": "-",
+                "VP": "-"
+            }
+        ],
+        "enzymes": [
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "ec": "1.9.3.1",
+                "value": "cytochrome oxidase"
+            },
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "value": "gelatinase"
+            },
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "ec": "4.1.99.1",
+                "value": "tryptophan deaminase"
+            },
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "ec": "3.5.1.5",
+                "value": "urease"
+            },
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "ec": "4.1.1.17",
+                "value": "ornithine decarboxylase"
+            },
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "ec": "4.1.1.18",
+                "value": "lysine decarboxylase"
+            },
+            {
+                "@ref": 68368,
+                "activity": "-",
+                "ec": "3.5.3.6",
+                "value": "arginine dihydrolase"
+            },
+            {
+                "@ref": 68368,
+                "activity": "+",
+                "ec": "3.2.1.23",
+                "value": "beta-galactosidase"
+            }
+        ],
+        "metabolite production": [
+            {
+                "@ref": 68368,
+                "Chebi-ID": 15688,
+                "metabolite": "acetoin",
+                "production": "no"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 35581,
+                "metabolite": "indole",
+                "production": "yes"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 16136,
+                "metabolite": "hydrogen sulfide",
+                "production": "no"
+            }
+        ],
+        "metabolite tests": [
+            {
+                "@ref": 68368,
+                "Chebi-ID": 15688,
+                "metabolite": "acetoin",
+                "voges-proskauer-test": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 35581,
+                "indole test": "+",
+                "metabolite": "indole"
+            }
+        ],
+        "metabolite utilization": [
+            {
+                "@ref": 68368,
+                "Chebi-ID": 30849,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "L-arabinose",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 27613,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "amygdalin",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 28053,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "melibiose",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 17992,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "sucrose",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 62345,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "L-rhamnose",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 30911,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "sorbitol",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 17268,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "myo-inositol",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 16899,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "D-mannitol",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 17634,
+                "kind of utilization tested": "fermentation",
+                "metabolite": "D-glucose",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 5291,
+                "kind of utilization tested": "hydrolysis",
+                "metabolite": "gelatin",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 27897,
+                "kind of utilization tested": "energy source",
+                "metabolite": "tryptophan",
+                "utilization activity": "+"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 16199,
+                "kind of utilization tested": "hydrolysis",
+                "metabolite": "urea",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 16947,
+                "kind of utilization tested": "assimilation",
+                "metabolite": "citrate",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 18257,
+                "kind of utilization tested": "degradation",
+                "metabolite": "ornithine",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 25094,
+                "kind of utilization tested": "degradation",
+                "metabolite": "lysine",
+                "utilization activity": "-"
+            },
+            {
+                "@ref": 68368,
+                "Chebi-ID": 29016,
+                "kind of utilization tested": "hydrolysis",
+                "metabolite": "arginine",
+                "utilization activity": "-"
+            }
+        ]
+    },
+    "Reference": [
+        {
+            "@id": 1789,
+            "authors": "Curators of the DSMZ",
+            "catalogue": "Leibniz Institut DSMZ-Deutsche Sammlung von Mikroorganismen und Zellkulturen GmbH (DSM 4599)",
+            "doi/url": "https://www.dsmz.de/collection/catalogue/details/culture/DSM-4599"
+        },
+        {
+            "@id": 20215,
+            "authors": "Parte, A.C., Sard\u00e0 Carbasse, J., Meier-Kolthoff, J.P., Reimer, L.C. and G\u00f6ker, M.",
+            "doi/url": "10.1099/ijsem.0.004332",
+            "title": "List of Prokaryotic names with Standing in Nomenclature (LPSN) moves to the DSMZ"
+        },
+        {
+            "@id": 68368,
+            "title": "Automatically annotated from API 20E"
+        },
+        {
+            "@id": 74003,
+            "authors": "Reimer, L.C., Lissin, A.,Schober, I., Witte,J.F., Podstawka, A., L\u00fcken, H., Bunk, B.,Overmann, J.",
+            "doi/url": "10.60712/SI-ID112747.1",
+            "title": "StrainInfo: A central database for resolving microbial strain identifiers"
+        }
+    ],
+    "Safety information": {
+        "risk assessment": {
+            "@ref": 1789,
+            "biosafety level": "1",
+            "biosafety level comment": "Risk group (German classification)"
+        }
+    },
+    "Sequence information": {}
+}
