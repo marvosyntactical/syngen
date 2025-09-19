@@ -166,6 +166,34 @@ def _extract_biosample_bioproject(entry: dict):
     return biosample, bioproject
 
 
+def _extract_bacdive_id(entry: dict) -> Optional[str]:
+    """
+    Try multiple places/variants for the BacDive internal identifier.
+    Returns a string or None.
+    """
+    # Typical location
+    sn = entry.get("strain number") or entry.get("strainNumber") or {}
+    for k in ("BacDive-ID", "BacDive ID", "BacDiveID", "bacdive_id", "BacDive Id"):
+        if isinstance(sn, dict) and sn.get(k) not in (None, ""):
+            return str(sn.get(k))
+
+    # Sometimes there is a top-level 'BacDive-ID' or 'entry number'
+    for k in ("BacDive-ID", "entry number", "entry_number"):
+        v = entry.get(k)
+        if v not in (None, ""):
+            return str(v)
+
+    # Last-ditch: detect numeric-looking IDs among keys
+    # (very defensive; avoids false positives)
+    for v in (sn if isinstance(sn, dict) else {}).values():
+        if isinstance(v, (int, str)):
+            s = str(v).strip()
+            if s.isdigit() and len(s) >= 4:  # BacDive IDs are numeric strings
+                return s
+
+    return None
+
+
 def _extract_normalized(entry: dict) -> Dict[str, Optional[str]]:
     """Make a flat, stable record from a raw BacDive JSON entry."""
     tax = entry.get("taxonomy", {}) or {}
@@ -174,6 +202,7 @@ def _extract_normalized(entry: dict) -> Dict[str, Optional[str]]:
 
     bd_id = entry.get("strain number", {}).get("BacDive-ID")
     bd_id = str(bd_id) if bd_id is not None else None
+    # bd_id = _extract_bacdive_id(entry)
 
     ncbi_taxid = _get_first_int(tax.get("NCBI Taxonomy-ID"))
 
@@ -279,6 +308,9 @@ def fetch_bacdive_records(
     # Show first three quickly for sanity
     preview = []
     for e in raw_entries[:3]:
+        cls_info = e['Name and taxonomic classification']
+        # print(cls_info)
+        # logging.debug(f"Entry: {cls_info['full scientific name'], cls_info['type strain']}")
         bd_id = (e.get("strain number", {}) or {}).get("BacDive-ID")
         name = (e.get("taxonomy", {}) or {}).get("name and status") or (e.get("taxonomy", {}) or {}).get("name")
         preview.append((bd_id, name))
@@ -376,6 +408,16 @@ def write_sqlite(db_path: str, records: List[Dict]) -> None:
         raw_json=excluded.raw_json
     """, records)
 
+    # good, dropped = [], 0
+    # for r in records:
+    #     if r.get("bacdive_id"):
+    #         good.append(r)
+    #     else:
+    #         dropped += 1
+    # if dropped:
+    #     logging.warning(f"Dropping {dropped} entries with missing BacDive-ID.")
+    # records = good
+
     acc_rows = []
     for r in records:
         bd = r.get("bacdive_id")
@@ -420,9 +462,9 @@ def parse_args():
     # Search mode
     ap.add_argument("--search-mode", choices=["taxonomy", "ids"], default="taxonomy",
                     help="Search by taxonomy (genus/species string) or a list of BacDive IDs")
-    ap.add_argument("--taxonomy", type=str, default="Escherichia coli",
+    ap.add_argument("--taxonomy", type=str, default="Acetanaerobacterium elongatum",
                     help="Taxonomy string when search-mode=taxonomy")
-    ap.add_argument("--searchtype", choices=["exact", "contains"], default="exact",
+    ap.add_argument("--searchtype", choices=["exact", "contains"], default="contains",
                     help="BacDive search type: exact or contains")
     ap.add_argument("--ids", type=str, nargs="*", default=None,
                     help="Explicit BacDive IDs to hydrate when search-mode=ids")
@@ -432,6 +474,7 @@ def parse_args():
     ap.add_argument("--require-motile", action="store_true", help="Keep only motile")
 
     ap.add_argument("--log-level", default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)")
+    ap.add_argument("--dry-run", action="store_true", help="If set, don't write to sqlite3 DB.")
     return ap.parse_args()
 
 
@@ -463,7 +506,7 @@ def main():
 
     if args.search_mode == "taxonomy":
         # BacDive expects taxonomy as a tuple; contains/exact controlled via setSearchType
-        search_kwargs = {"taxonomy": (args.taxonomy,), "searchtype": args.searchtype}
+        search_kwargs = {"taxonomy": args.taxonomy} # , "searchtype": args.searchtype}
         logging.info(f"Running taxonomy search: '{args.taxonomy}' (searchtype={args.searchtype}, limit={args.limit})")
         records = fetch_bacdive_records(
             client,
@@ -486,7 +529,8 @@ def main():
         logging.warning("No records returned after normalization; database will not be updated.")
         return 0
 
-    write_sqlite(args.db, records)
+    if not args.dry_run:
+        write_sqlite(args.db, records)
     return 0
 
 

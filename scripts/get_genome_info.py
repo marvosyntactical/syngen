@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 import requests
 import time
 import datetime
@@ -15,8 +15,6 @@ def parse_args():
     ap.add_argument("--email", type=str, default= "koss@cl.uni-heidelberg.de")
 
     return ap.parse_args()
-
-
 
 
 def _http_get(url, params=None, email="you@example.org", tries=4, backoff=1.5):
@@ -280,7 +278,7 @@ def add_genomes_for_missing(db_path: str, email: str = "you@example.org"):
       SELECT s.bacdive_id
       FROM strains s
       LEFT JOIN strain_genome_links l ON s.bacdive_id = l.bacdive_id
-      WHERE l.accession IS NULL
+      WHERE s.bacdive_id IS NOT NULL AND s.bacdive_id <> '' AND l.accession IS NULL
     """).fetchall()
 
     print(f"{len(missing)} strains missing genome link")
